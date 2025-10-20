@@ -1,16 +1,14 @@
 {
-    "name": "Dango-Translator Codespaces",
-    "image": "mcr.microsoft.com/devcontainers/python:3.11-bookworm",
+    "name": "Dango-Translator Dev Container",
+    "image": "mcr.microsoft.com/vscode/devcontainers/cpp:17-debian-12",
     "customizations": {
         "vscode": {
             "extensions": [
-                "ms-python.python",
-                "ms-python.vscode-pylance"
-            ],
-            "settings": {
-                "python.defaultInterpreterPath": "${containerWorkspaceFolder}/.venv/bin/python"
-            }
+                "ms-vscode.cpptools",
+                "ms-vscode.cmake-tools"
+            ]
         }
     },
+    // This command runs after the container is created.
     "postCreateCommand": "./.devcontainer/post-create.sh"
 }

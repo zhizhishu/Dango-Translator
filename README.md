@@ -27,6 +27,7 @@
 
 - [翻译器使用文档教程](https://dango-docs-v6.ap-sh.starivercs.cn/)
 - 开发者：使用 GitHub Codespaces（超详细小白版）请参见 [CODESPACES.md](./CODESPACES.md)
+- 使用 GitHub Actions 一键编译 macOS（含 arm64/x64）请参见 [BUILDING_MACOS.md](./BUILDING_MACOS.md)
 
 ## 安装版下载
 

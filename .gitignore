@@ -25,3 +25,15 @@ ocr.json
 ipt.json
 rdr.json
 /.venv
+
+# Python & PyInstaller common
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+/.pytest_cache
+/.mypy_cache
+/build/
+/dist/
+/*.spec

@@ -1,43 +1,146 @@
-name: Build macOS App
+name: Build macOS App (x64/arm64)
 
 on:
   workflow_dispatch:
+    inputs:
+      arch:
+        description: "选择要构建的架构"
+        required: true
+        default: both
+        type: choice
+        options:
+          - arm64
+          - x64
+          - both
+      create_release:
+        description: "是否创建 GitHub Release（仅在手动触发时有效）"
+        required: false
+        default: false
+        type: boolean
   push:
     tags:
       - "macos-v*"
 
+permissions:
+  contents: write
+
 jobs:
-  build-macos:
-    runs-on: macos-latest
+  # 先根据触发方式生成矩阵（支持 arm64/x64/both）
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set.outputs.matrix }}
+      should_release: ${{ steps.set.outputs.should_release }}
+      tag: ${{ steps.set.outputs.tag }}
+    steps:
+      - id: set
+        shell: bash
+        run: |
+          # 生成矩阵（包含 arch 和对应 runs-on 标签）
+          choose_matrix() {
+            case "$1" in
+              arm64)
+                echo '[{"arch":"arm64","runs_on":["self-hosted","macos","ARM64"]}]'
+                ;;
+              x64)
+                echo '[{"arch":"x64","runs_on":["macos-latest"]}]'
+                ;;
+              both)
+                echo '[{"arch":"x64","runs_on":["macos-latest"]},{"arch":"arm64","runs_on":["self-hosted","macos","ARM64"]}]'
+                ;;
+              *)
+                echo '[{"arch":"x64","runs_on":["macos-latest"]}]'
+                ;;
+            esac
+          }
+
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            MATRIX=$(choose_matrix "${{ inputs.arch }}")
+            # 手动触发时由输入决定是否创建 Release
+            SHOULD_RELEASE="${{ inputs.create_release }}"
+            TAG="manual-${GITHUB_RUN_ID}"
+          else
+            # 打 tag 时默认同时构建 x64+arm64，并创建 Release
+            MATRIX=$(choose_matrix both)
+            SHOULD_RELEASE=true
+            TAG="${GITHUB_REF_NAME}"
+          fi
+
+          echo "matrix=${MATRIX}" >> "$GITHUB_OUTPUT"
+          echo "should_release=${SHOULD_RELEASE}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build (${{ matrix.arch }})
+    needs: plan
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
+    runs-on: ${{ matrix.runs_on }}
+    env:
+      PIP_DISABLE_PIP_VERSION_CHECK: 1
+      PIP_PROGRESS_BAR: off
+      MACOSX_DEPLOYMENT_TARGET: 11.0
     steps:
       - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Print runner info
+        run: |
+          uname -a
+          sysctl -n machdep.cpu.brand_string || true
+          python3 --version || true
+
+      - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: "pip"
 
-      - name: Install Homebrew dependencies (Tesseract, Leptonica)
+      - name: Prepare Homebrew
+        shell: bash
         run: |
+          # 在 Intel 与 Apple Silicon 上分别初始化 brew 的环境
+          if [ -x /opt/homebrew/bin/brew ]; then
+            eval "$(/opt/homebrew/bin/brew shellenv)"
+          fi
+          if [ -x /usr/local/bin/brew ]; then
+            eval "$([ -x /usr/local/bin/brew ] && /usr/local/bin/brew shellenv)"
+          fi
+          brew --version
+
+      - name: Install Homebrew dependencies (Tesseract, Leptonica)
+        shell: bash
+        run: |
+          set -x
           brew update
           brew install tesseract leptonica || true
-          # Optional: Install extra language data (includes chi_sim)
+          # 可选：安装额外语言数据（包含 chi_sim）
           brew install tesseract-lang || true
 
       - name: Install Python dependencies (macOS friendly)
+        shell: bash
         run: |
           python -m pip install --upgrade pip setuptools wheel
-          FILTERED_REQ=/tmp/requirements.macos.txt
-          # Exclude Windows-only or incompatible pins
-          grep -v -E '^(pywin32|winreglib|opencv_python|scikit_image|skimage|system_hotkey)=' requirements.txt > "$FILTERED_REQ" || true
+          FILTERED_REQ=$(mktemp)
+          # 过滤 Windows-only 或 macOS 不友好的固定版本
+          # opencv/scikit-image 用 macOS 可用的替代包
+          grep -v -E '^(pywin32|winreglib|system_hotkey)=' requirements.txt > "$FILTERED_REQ" || true
+          grep -v -E '^(opencv_python|scikit_image|skimage)=' "$FILTERED_REQ" > "${FILTERED_REQ}.2" || true
+          mv "${FILTERED_REQ}.2" "$FILTERED_REQ"
           python -m pip install -r "$FILTERED_REQ"
-          # Provide macOS-compatible alternatives and builder
           python -m pip install "PyQt5>=5.15.10,<6" opencv-python-headless scikit-image pyinstaller
 
       - name: Build app bundle with PyInstaller
+        shell: bash
         run: |
+          # 根据架构传递 target-arch（不会跨平台编译，仅限定产物架构）
+          if [ "${{ matrix.arch }}" = "arm64" ]; then
+            TARGET_ARCH="arm64"
+          else
+            TARGET_ARCH="x86_64"
+          fi
+
           pyinstaller \
             --clean \
             --noconfirm \
@@ -45,16 +148,41 @@ jobs:
             --name DangoTranslator \
             --add-data "config:config" \
             --add-data "ui/static:ui/static" \
+            --target-arch "$TARGET_ARCH" \
             app.py
 
       - name: Package artifact
+        shell: bash
         run: |
           cd dist
-          zip -r DangoTranslator-macos.zip DangoTranslator.app
+          zip -r "DangoTranslator-macos-${{ matrix.arch }}.zip" DangoTranslator.app
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: DangoTranslator-macos
-          path: dist/DangoTranslator-macos.zip
+          name: DangoTranslator-macos-${{ matrix.arch }}
+          path: dist/DangoTranslator-macos-${{ matrix.arch }}.zip
           if-no-files-found: error
+
+  release:
+    name: Create GitHub Release
+    needs: [plan, build]
+    if: ${{ needs.plan.outputs.should_release == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: DangoTranslator-macos-*
+          merge-multiple: true
+
+      - name: Create Release and upload assets
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.plan.outputs.tag }}
+          name: ${{ needs.plan.outputs.tag }}
+          draft: false
+          prerelease: false
+          files: |
+            artifacts/*.zip

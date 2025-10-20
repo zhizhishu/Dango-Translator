@@ -1,0 +1,60 @@
+name: Build macOS App
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "macos-v*"
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Homebrew dependencies (Tesseract, Leptonica)
+        run: |
+          brew update
+          brew install tesseract leptonica || true
+          # Optional: Install extra language data (includes chi_sim)
+          brew install tesseract-lang || true
+
+      - name: Install Python dependencies (macOS friendly)
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          FILTERED_REQ=/tmp/requirements.macos.txt
+          # Exclude Windows-only or incompatible pins
+          grep -v -E '^(pywin32|winreglib|opencv_python|scikit_image|skimage|system_hotkey)=' requirements.txt > "$FILTERED_REQ" || true
+          python -m pip install -r "$FILTERED_REQ"
+          # Provide macOS-compatible alternatives and builder
+          python -m pip install "PyQt5>=5.15.10,<6" opencv-python-headless scikit-image pyinstaller
+
+      - name: Build app bundle with PyInstaller
+        run: |
+          pyinstaller \
+            --clean \
+            --noconfirm \
+            --windowed \
+            --name DangoTranslator \
+            --add-data "config:config" \
+            --add-data "ui/static:ui/static" \
+            app.py
+
+      - name: Package artifact
+        run: |
+          cd dist
+          zip -r DangoTranslator-macos.zip DangoTranslator.app
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: DangoTranslator-macos
+          path: dist/DangoTranslator-macos.zip
+          if-no-files-found: error

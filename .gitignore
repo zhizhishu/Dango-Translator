@@ -24,3 +24,4 @@ chromedriver_win32.zip
 ocr.json
 ipt.json
 rdr.json
+/.venv

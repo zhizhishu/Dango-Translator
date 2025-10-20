@@ -25,7 +25,8 @@
 
 ## 使用教程
 
-[翻译器使用文档教程](https://dango-docs-v6.ap-sh.starivercs.cn/)
+- [翻译器使用文档教程](https://dango-docs-v6.ap-sh.starivercs.cn/)
+- 开发者：使用 GitHub Codespaces（超详细小白版）请参见 [CODESPACES.md](./CODESPACES.md)
 
 ## 安装版下载
 

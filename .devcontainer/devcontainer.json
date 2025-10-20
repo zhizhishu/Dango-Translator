@@ -1,0 +1,14 @@
+{
+    "name": "Dango-Translator Dev Container",
+    "image": "mcr.microsoft.com/vscode/devcontainers/cpp:17-debian-12",
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-vscode.cpptools",
+                "ms-vscode.cmake-tools"
+            ]
+        }
+    },
+    // This command runs after the container is created.
+    "postCreateCommand": "./.devcontainer/post-create.sh"
+}

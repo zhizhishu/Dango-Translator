@@ -40,16 +40,16 @@ jobs:
           choose_matrix() {
             case "$1" in
               arm64)
-                echo '[{"arch":"arm64","runs_on":["self-hosted","macos","ARM64"]}]'
+                echo '[{"arch":"arm64","runs_on":["macos-14"]}]'
                 ;;
               x64)
-                echo '[{"arch":"x64","runs_on":["macos-latest"]}]'
+                echo '[{"arch":"x64","runs_on":["macos-13"]}]'
                 ;;
               both)
-                echo '[{"arch":"x64","runs_on":["macos-latest"]},{"arch":"arm64","runs_on":["self-hosted","macos","ARM64"]}]'
+                echo '[{"arch":"x64","runs_on":["macos-13"]},{"arch":"arm64","runs_on":["macos-14"]}]'
                 ;;
               *)
-                echo '[{"arch":"x64","runs_on":["macos-latest"]}]'
+                echo '[{"arch":"x64","runs_on":["macos-13"]}]'
                 ;;
             esac
           }

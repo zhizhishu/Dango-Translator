@@ -199,6 +199,9 @@ class DangoTranslator :
 
         if not self.config["offlineOCR"] :
             return
+        if not hasattr(os, "startfile") :
+            self.logger.info("自动启动本地OCR仅在Windows环境下可用")
+            return
         if not utils.port.detectPort(self.yaml["port"]) :
             try :
                 # 启动本地OCR
